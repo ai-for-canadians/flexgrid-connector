@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flexgrid-connector"
+version = "0.1.0"
+description = "Client for FlexGrid on-prem inference. The wire contract is an assumption until FlexGrid confirms it."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "AI for Canadians" }]
+requires-python = ">=3.10"
+# No runtime dependencies on purpose: the connector has to install on an air-gapped box.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+flexgrid-probe = "flexgrid_connector.probe:main"
+flexgrid-mock = "flexgrid_connector.mock_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+flexgrid_connector = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets `pytest` run from a fresh clone without installing the package first.
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Spelled out so the result does not shift with ruff's defaults from one version to the next.
+select = ["E", "F", "W", "I", "B", "UP"]
