@@ -139,12 +139,21 @@ Details worth knowing:
 
 ## 8. Known gaps in v0.1
 
-- Not run against real FlexGrid hardware. The mock mimics the assumed contract, so a green test suite proves the connector is consistent with itself and nothing more.
+Each item here is tracked in the V2 roadmap in the README, so a reviewer can see both what is thin and when it closes.
+
+- Not run against real FlexGrid hardware. The mock mimics the assumed contract, so a green test suite proves the connector is consistent with itself and nothing more. The first real exchange with ARC is the only thing that validates the contract.
+- The probe measures one stream at a time. A multi-NPU deployment's quoted aggregate throughput is not tested. V0.2 adds `--parallel N`.
+- No retries, no backoff, no circuit breaker. A 5xx or a dropped connection raises. Callers retry at their own layer. V0.2 adds a pluggable retry policy and a breaker.
+- One timeout covers both the connect and the inter-byte wait. There is no separate per-token stall timeout on a stream, and no cap on total generation time. V0.2 adds a stall timeout.
+- No observability hooks. No structured logging, no request IDs, no metrics callback. V0.2 adds `on_request` and `on_response` callbacks and a `request_id`.
+- No contract version surfaced. When FlexGrid says "that is wrong" there is no anchor for which shape was in play. V0.2 adds `CONTRACT_VERSION`.
 - KV cache and sessions are not modelled. Each call resends the whole conversation.
 - No tool calling.
 - Reasoning output is not handled. `text` is `message.content` only. If a reasoning model returns its thinking in a separate field, it is in `ChatResult.raw`. If it comes back inside the answer, it is in `text` untouched.
-- No retries and no connection reuse. One short-lived connection per call.
-- TLS uses the system trust store. There is no option yet for a private certificate authority.
+- No connection reuse. One short-lived connection per call. V0.3's move to `httpx` fixes this.
+- TLS uses the system trust store. There is no option yet for a private certificate authority. V0.3 adds private CA support.
+- No separate health or readiness probing. "Reachable" is one check. Cold-start model-load on Furiosa can take seconds and is not distinguished from an outage. V0.2 adds `/healthz` and `/readyz`.
+- No prompt-logging guidance. Deliberately absent until there is a redaction story to match. V1.0 adds it.
 - A DNS lookup is bounded by the operating system's resolver, not by the connect timeout. Use an IP or a name that resolves locally.
 
 
@@ -189,3 +198,14 @@ Once these are answered, the real ARC contract is fully specified and `contract.
 
 19. What does ARC log about requests (prompts, outputs, metadata), where is it kept, and for how long?
 20. Is there a way to get a test key on a single card before full onboarding?
+
+**Concurrency and routing**
+
+21. Does ARC serve multiple models per endpoint, or one model per endpoint? If the latter, is the `model` field in the request ignored? This is the Furiosa-server question stated plainly: the answer decides whether `FLEXGRID_MODEL` picks the model or is only a label.
+22. What is the concurrency model per card: one stream at a time, N streams FIFO, N streams time-sliced? What happens when the Nth plus first request arrives, queued or rejected?
+23. For the quoted aggregate throughput of a multi-NPU deployment, how does ARC spread load across cards, and is there a request header or hint a caller can use to pin a conversation to a card for KV reuse?
+
+**Operations**
+
+24. What is the expected cold-start time to load a model onto a card, and is there a status code or state a client can poll that distinguishes "model loading" from "down"? A reasoning model with a long warmup needs its own retryable state.
+25. Does a stream that drops mid-generation have any recovery handle the client can use to resume, or is the only option to retry the whole prompt?
