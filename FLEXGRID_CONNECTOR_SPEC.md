@@ -209,3 +209,59 @@ Once these are answered, the real ARC contract is fully specified and `contract.
 
 24. What is the expected cold-start time to load a model onto a card, and is there a status code or state a client can poll that distinguishes "model loading" from "down"? A reasoning model with a long warmup needs its own retryable state.
 25. Does a stream that drops mid-generation have any recovery handle the client can use to resume, or is the only option to retry the whole prompt?
+
+
+## 10. The DAG / scheduler surface (new scope, 2026-11-16)
+
+On the Nov 16 call, FlexGrid confirmed that in addition to the OpenAI-compatible prompting endpoint, the platform exposes a **second endpoint for DAG-based workflow scheduling**. It is not OpenAI-shaped. Callers hand it a workflow, it breaks the workflow into DAG pieces, runs them on the scheduler, and returns a final result.
+
+What we were told:
+
+- Transport is either an HTTP API call or a gRPC call. Both reach the same scheduler.
+- Input is a workflow description, not a chat payload.
+- Output is one final result at the end, not a token stream (confirm whether progress events or intermediate results are available).
+- The orchestrator, scheduler, multi-session handling and knowledge-base harness all sit behind this endpoint, so a caller does not have to build them.
+
+What this means for the connector:
+
+- v0.1 `FlexGridClient` still covers the prompting case correctly.
+- A new client surface is needed for the DAG endpoint. Candidate name: `FlexGridScheduler`.
+- The DAG surface is deferred until FlexGrid shares an API reference or a reference example. Specific blockers: HTTP vs gRPC decision, auth shape, workflow schema, polling vs async callback for results.
+
+Open questions specific to the DAG surface:
+
+26. HTTP or gRPC as the preferred client path? Both?
+27. What is the workflow payload schema — DAG nodes, edges, inputs, outputs?
+28. How are long-running workflows surfaced: synchronous wait, polling, webhook, gRPC stream?
+29. Is a single workflow billed as one unit or per-node against token accounting?
+30. Can a DAG node call a model that is already warm in another node's context (KV cache reuse at the scheduler level)?
+
+
+## 11. What was confirmed on 2026-11-16
+
+Partial or full answers from the Nov 16 call with Sami, Lalith and Sunny. Spec question numbers map to sections 8–9 above.
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | API shape | HTTP, OpenAI-compatible for prompting. Separate HTTP/gRPC endpoint for DAG workflow scheduling (section 10). |
+| 4 | What does a working request look like | Not yet. FlexGrid will provide model list, endpoint and credentials. |
+| 5 | Which models are live | Not yet provided. Confirmed intent to share model list as part of A8001 onboarding. |
+| 7 | Context window / max output | Not yet provided. |
+| 10 | Streaming supported | Not confirmed explicitly for the prompting endpoint; assumed yes under OpenAI-compatible claim. |
+| 11 | Token counts in responses | Yes. FlexGrid is building a token-usage dashboard and plans to show calculations end-to-end. |
+| 15 | What does onboarding look like | Direct provisioning for alpha users. First external user is Patrick / AIFC, alpha username `A8001`. Website signup launching week of Nov 16. Limited alpha slots. |
+| 18 | Health or status endpoint | Not explicit. Remote machine-on capability mentioned (DMZ servers partially idle, can be turned on from FlexGrid-side). Implies some remote control-plane. |
+| 20 | Test key path before full onboarding | Yes — alpha program is effectively that path. |
+| 21 | One model per endpoint vs ARC-dispatches | Not explicitly answered. FlexGrid's description of "orchestrator and scheduler under the hood" suggests ARC-dispatches. Confirm. |
+
+Still fully open: questions 2, 3, 6, 8, 9, 12, 13, 14, 16, 17, 19, 22, 23, 24, 25.
+
+**Next unlock:** Lalith + Patrick walk-through of the ARC code to identify where the harness works and where it breaks. The walk-through is the mechanism by which the remaining open questions get answered.
+
+**New facts worth filing:**
+
+- Platform differentiator (per FlexGrid): the full software harness (orchestrator, scheduler, multi-session, KB) ships with the compute. Users do not build orchestration themselves. This is explicitly the gap vs OpenRouter-style aggregators.
+- First connector workload under discussion: a DMZ-internal Slack bot using an embedding model + reranker on FlexGrid, keeping a cloud API available for higher-reasoning calls. Token-usage dashboard is the measurement surface.
+- Sami tentatively in Toronto Tue–Wed, week of Nov 23. Agreed to spend dedicated time on the walk-through there.
+- ARC is being evaluated in parallel with FlexGrid's earlier GTAA harness work. Expected to compare, identify overlap, and decide what to keep vs restart.
+- Candidate use-case verticals FlexGrid is open to: public-sector document intake (passport applications, parking, multilingual), education (admissions, scheduling, alumni), DMZ-internal agentic apps.

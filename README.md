@@ -2,7 +2,7 @@
 
 A small Python client for running inference on FlexGrid's on-prem hardware instead of a cloud API. It comes with a readiness probe and a local mock, so you can try everything with no hardware.
 
-**Status: the wire contract is an assumption.** The connector assumes FlexGrid's ARC orchestration layer exposes an OpenAI-compatible chat API. That has not been confirmed yet, and nothing here has been run against FlexGrid hardware. `FLEXGRID_CONNECTOR_SPEC.md` says exactly what is assumed and lists the open questions.
+**Status (updated 2026-11-16): the prompting contract is confirmed.** FlexGrid's platform exposes an OpenAI-compatible endpoint for prompting, plus a separate HTTP/gRPC endpoint for DAG-based workflow scheduling. The connector's v0.1 prompting assumption was correct. The DAG/scheduler surface is new scope not yet modelled here. AIFC is user `A8001`, the first external alpha. See `FLEXGRID_CONNECTOR_SPEC.md` section 11 for what was confirmed and section 10 for the DAG/scheduler endpoint.
 
 Built by AI for Canadians. Apache 2.0.
 
